@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f4f6">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111827">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="筆談表示">
+  <meta name="format-detection" content="telephone=no">
+  <title>筆談表示</title>
+
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --text: #111827;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --accent-text: #ffffff;
+      --danger: #b91c1c;
+      --display-bg: #ffffff;
+      --display-text: #000000;
+      --safe-top: max(8px, env(safe-area-inset-top));
+      --safe-right: max(8px, env(safe-area-inset-right));
+      --safe-bottom: max(8px, env(safe-area-inset-bottom));
+      --safe-left: max(8px, env(safe-area-inset-left));
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --panel: #1f2937;
+        --text: #f9fafb;
+        --border: #4b5563;
+        --danger: #fca5a5;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      min-height: 100%;
+      overflow-x: hidden;
+      background: var(--bg);
+      text-size-adjust: 100%;
+      -webkit-text-size-adjust: 100%;
+      overscroll-behavior: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      min-height: 100dvh;
+      padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI",
+        "Yu Gothic", "Noto Sans JP", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      min-width: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .app {
+      width: min(900px, 100%);
+      margin: 0 auto;
+    }
+
+    .workspace {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .workspace.mode-top {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "display"
+        "controls";
+    }
+
+    .workspace.mode-left {
+      grid-template-columns: minmax(138px, 44%) minmax(0, 56%);
+      grid-template-areas: "display controls";
+      align-items: stretch;
+    }
+
+    .workspace.mode-right {
+      grid-template-columns: minmax(0, 56%) minmax(138px, 44%);
+      grid-template-areas: "controls display";
+      align-items: stretch;
+    }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .display-panel {
+      grid-area: display;
+      position: relative;
+      min-height: 264px;
+      background: var(--display-bg);
+    }
+
+    .controls-panel {
+      grid-area: controls;
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .display-shell {
+      position: absolute;
+      inset: 0;
+      min-width: 0;
+      min-height: 0;
+      padding: 7px;
+      overflow: hidden;
+    }
+
+    .display-content {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--display-bg);
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+
+    .workspace.mode-top .display-content {
+      padding: 10px 12px;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .workspace.mode-left .display-content,
+    .workspace.mode-right .display-content {
+      padding: 10px 8px;
+      overflow-x: auto;
+      overflow-y: auto;
+      direction: rtl;
+    }
+
+    .display-text {
+      color: var(--display-text);
+      font-weight: 800;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      line-break: strict;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .workspace.mode-top .display-text {
+      display: block;
+      width: 100%;
+      min-height: 100%;
+      line-height: 1.16;
+      text-align: center;
+      transform-origin: center;
+    }
+
+    .workspace.mode-left .display-text,
+    .workspace.mode-right .display-text {
+      display: block;
+      inline-size: 100%;
+      block-size: max-content;
+      min-block-size: 100%;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      line-height: 1.08;
+      text-align: start;
+      direction: ltr;
+      transform: none !important;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 138px;
+      max-height: 42dvh;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: transparent;
+      color: var(--text);
+      font-size: 1.05rem;
+      line-height: 1.5;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      caret-color: var(--accent);
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+
+    .direction-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    button {
+      min-height: 48px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .direction-button {
+      font-size: 0.84rem;
+      line-height: 1.08;
+      white-space: nowrap;
+    }
+
+    .direction-button .compact-label {
+      display: none;
+      font-size: 1.32rem;
+      line-height: 1;
+    }
+
+    .workspace.mode-left .direction-button .full-label,
+    .workspace.mode-right .direction-button .full-label {
+      display: none;
+    }
+
+    .workspace.mode-left .direction-button .compact-label,
+    .workspace.mode-right .direction-button .compact-label {
+      display: inline;
+    }
+
+    button:active {
+      transform: scale(0.985);
+    }
+
+    button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      outline-offset: 2px;
+    }
+
+    .active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--accent-text);
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      overflow: hidden;
+      background: var(--display-bg);
+    }
+
+    .overlay.show {
+      display: block;
+    }
+
+    .overlay-display {
+      position: absolute;
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      background: var(--display-bg);
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+
+    .overlay.mode-top .overlay-display {
+      inset:
+        env(safe-area-inset-top)
+        env(safe-area-inset-right)
+        calc(max(72px, env(safe-area-inset-bottom) + 62px))
+        env(safe-area-inset-left);
+      padding: 14px;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .overlay.mode-left .overlay-display {
+      top: env(safe-area-inset-top);
+      bottom: env(safe-area-inset-bottom);
+      left: env(safe-area-inset-left);
+      right: calc(max(72px, 17vw) + env(safe-area-inset-right) + 5px);
+      padding: 12px 9px;
+      overflow-x: auto;
+      overflow-y: auto;
+      direction: rtl;
+    }
+
+    .overlay.mode-right .overlay-display {
+      top: env(safe-area-inset-top);
+      bottom: env(safe-area-inset-bottom);
+      left: calc(max(72px, 17vw) + env(safe-area-inset-left) + 5px);
+      right: env(safe-area-inset-right);
+      padding: 12px 9px;
+      overflow-x: auto;
+      overflow-y: auto;
+      direction: rtl;
+    }
+
+    .overlay-text {
+      color: var(--display-text);
+      font-weight: 800;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      line-break: strict;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .overlay.mode-top .overlay-text {
+      display: block;
+      width: 100%;
+      min-height: 100%;
+      line-height: 1.14;
+      text-align: center;
+      transform-origin: center;
+    }
+
+    .overlay.mode-left .overlay-text,
+    .overlay.mode-right .overlay-text {
+      display: block;
+      inline-size: 100%;
+      block-size: max-content;
+      min-block-size: 100%;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      line-height: 1.08;
+      text-align: start;
+      direction: ltr;
+      transform: none !important;
+    }
+
+    .overlay-controls {
+      position: absolute;
+      z-index: 2;
+      display: flex;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.60);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .overlay.mode-top .overlay-controls {
+      left: 50%;
+      bottom: max(7px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      flex-direction: row;
+    }
+
+    .overlay.mode-left .overlay-controls {
+      top: 50%;
+      right: max(7px, env(safe-area-inset-right));
+      transform: translateY(-50%);
+      flex-direction: column;
+    }
+
+    .overlay.mode-right .overlay-controls {
+      top: 50%;
+      left: max(7px, env(safe-area-inset-left));
+      transform: translateY(-50%);
+      flex-direction: column;
+    }
+
+    .overlay-controls button {
+      min-width: 48px;
+      min-height: 44px;
+      border: 0;
+      background: rgba(255, 255, 255, 0.17);
+      color: #fff;
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .overlay-controls {
+      max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 14px);
+      overflow: auto;
+    }
+
+    .overlay-controls .close {
+      background: rgba(220, 38, 38, 0.86);
+    }
+
+    @media (orientation: landscape) and (max-height: 500px) {
+      .workspace.mode-top .display-panel {
+        min-height: 150px;
+      }
+
+      .workspace.mode-left .display-panel,
+      .workspace.mode-right .display-panel {
+        min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 18px);
+      }
+
+      textarea {
+        min-height: 86px;
+        max-height: 28dvh;
+      }
+
+      button {
+        min-height: 43px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      button:active {
+        transform: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section id="workspace" class="workspace mode-top">
+      <section class="panel display-panel" aria-label="表示プレビュー">
+        <div class="display-shell">
+          <div id="displayContent" class="display-content">
+            <div id="displayText" class="display-text">ここに表示されます</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel controls-panel">
+        <label for="message" class="visually-hidden">表示する文章</label>
+        <textarea
+          id="message"
+          placeholder="表示する文章を入力"
+          enterkeyhint="done"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        ></textarea>
+
+        <div class="direction-grid" role="group" aria-label="表示方向">
+          <button type="button" class="direction-button" data-mode="0" aria-label="上側に通常表示" title="上側に通常表示">
+            <span class="full-label">通常</span><span class="compact-label" aria-hidden="true">↑</span>
+          </button>
+          <button type="button" class="direction-button" data-mode="180" aria-label="上側に上下反転表示" title="上側に上下反転表示">
+            <span class="full-label">上下反転</span><span class="compact-label" aria-hidden="true">↕</span>
+          </button>
+          <button type="button" class="direction-button" data-mode="270" aria-label="入力欄の左に縦書き表示" title="入力欄の左に縦書き表示">
+            <span class="full-label">左表示</span><span class="compact-label" aria-hidden="true">⇤</span>
+          </button>
+          <button type="button" class="direction-button" data-mode="90" aria-label="入力欄の右に縦書き表示" title="入力欄の右に縦書き表示">
+            <span class="full-label">右表示</span><span class="compact-label" aria-hidden="true">⇥</span>
+          </button>
+        </div>
+
+        <div class="action-grid" role="group" aria-label="表示操作">
+          <button type="button" id="showButton" class="primary">拡大</button>
+          <button type="button" id="clearButton" class="danger">消去</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <section id="overlay" class="overlay mode-top" role="dialog" aria-modal="true" aria-label="筆談の拡大表示" aria-hidden="true">
+    <div id="overlayDisplay" class="overlay-display">
+      <div id="overlayText" class="overlay-text"></div>
+    </div>
+
+    <div class="overlay-controls" role="group" aria-label="拡大表示中の操作">
+      <button type="button" id="overlayTop" data-overlay-mode="0" aria-label="上側に通常表示" title="上側に通常表示">↑</button>
+      <button type="button" id="overlayFlip" data-overlay-mode="180" aria-label="上側に上下反転表示" title="上側に上下反転表示">↕</button>
+      <button type="button" id="overlayLeft" data-overlay-mode="270" aria-label="左側に縦書き表示" title="左側に縦書き表示">⇤</button>
+      <button type="button" id="overlayRight" data-overlay-mode="90" aria-label="右側に縦書き表示" title="右側に縦書き表示">⇥</button>
+      <button type="button" id="closeButton" class="close" aria-label="閉じる" title="閉じる">×</button>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const app = document.querySelector('.app');
+      const workspace = document.getElementById('workspace');
+      const message = document.getElementById('message');
+      const displayContent = document.getElementById('displayContent');
+      const displayText = document.getElementById('displayText');
+      const overlay = document.getElementById('overlay');
+      const overlayDisplay = document.getElementById('overlayDisplay');
+      const overlayText = document.getElementById('overlayText');
+      const closeButton = document.getElementById('closeButton');
+      const modeButtons = [...document.querySelectorAll('[data-mode]')];
+      const overlayModeButtons = [...document.querySelectorAll('[data-overlay-mode]')];
+
+      let mode = 0;
+      let rafId = 0;
+      let pendingReset = true;
+      let overlayTrigger = null;
+
+      function normalize(value) {
+        return ((Number(value) % 360) + 360) % 360;
+      }
+
+      function isSideMode(value) {
+        const normalized = normalize(value);
+        return normalized === 90 || normalized === 270;
+      }
+
+      function layoutClass(value) {
+        const normalized = normalize(value);
+        if (normalized === 90) return 'mode-right';
+        if (normalized === 270) return 'mode-left';
+        return 'mode-top';
+      }
+
+      function applyLayout(target, value) {
+        target.classList.remove('mode-top', 'mode-left', 'mode-right');
+        target.classList.add(layoutClass(value));
+      }
+
+      function captureScroll(container) {
+        const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+        return {
+          topRatio: maxTop ? container.scrollTop / maxTop : 0,
+          leftRatio: maxLeft ? container.scrollLeft / maxLeft : 0
+        };
+      }
+
+      function restoreScroll(container, snapshot) {
+        const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+        container.scrollTop = maxTop * snapshot.topRatio;
+        container.scrollLeft = maxLeft * snapshot.leftRatio;
+      }
+
+      function resetScroll(container, value) {
+        const normalized = normalize(value);
+        const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const maxLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+
+        if (normalized === 180) {
+          container.scrollTop = maxTop;
+          container.scrollLeft = 0;
+          return;
+        }
+
+        container.scrollTop = 0;
+        container.scrollLeft = isSideMode(normalized) ? maxLeft : 0;
+      }
+
+      function applyTextBaseStyle(element, value) {
+        const normalized = normalize(value);
+        element.style.transform = normalized === 180 ? 'rotate(180deg)' : 'none';
+      }
+
+      function contentFits(element, container) {
+        return (
+          element.scrollWidth <= container.clientWidth + 1 &&
+          element.scrollHeight <= container.clientHeight + 1
+        );
+      }
+
+      function fitText(element, container, value, expanded) {
+        const text = element.textContent;
+        if (!text || !container.clientWidth || !container.clientHeight) return;
+
+        const sideMode = isSideMode(value);
+        const minimum = expanded ? (sideMode ? 44 : 40) : (sideMode ? 32 : 30);
+        const maximum = expanded ? (sideMode ? 88 : 112) : (sideMode ? 58 : 76);
+
+        applyTextBaseStyle(element, value);
+        element.style.fontSize = `${minimum}px`;
+
+        if (!contentFits(element, container)) {
+          return;
+        }
+
+        let low = minimum;
+        let high = maximum;
+        let best = minimum;
+
+        for (let i = 0; i < 18; i += 1) {
+          const mid = (low + high) / 2;
+          element.style.fontSize = `${mid}px`;
+
+          if (contentFits(element, container)) {
+            best = mid;
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+
+        element.style.fontSize = `${best}px`;
+        applyTextBaseStyle(element, value);
+      }
+
+      function updateActiveButtons() {
+        const current = normalize(mode);
+
+        for (const button of modeButtons) {
+          const active = normalize(button.dataset.mode) === current;
+          button.classList.toggle('active', active);
+          button.setAttribute('aria-pressed', String(active));
+        }
+
+        for (const button of overlayModeButtons) {
+          const active = normalize(button.dataset.overlayMode) === current;
+          button.classList.toggle('active', active);
+          button.setAttribute('aria-pressed', String(active));
+        }
+      }
+
+      function scheduleRender({ reset = false } = {}) {
+        pendingReset = pendingReset || reset;
+        cancelAnimationFrame(rafId);
+
+        const previewSnapshot = captureScroll(displayContent);
+        const overlaySnapshot = captureScroll(overlayDisplay);
+
+        rafId = requestAnimationFrame(() => {
+          const shouldReset = pendingReset;
+          pendingReset = false;
+
+          applyLayout(workspace, mode);
+          applyLayout(overlay, mode);
+          fitText(displayText, displayContent, mode, false);
+
+          if (shouldReset) {
+            resetScroll(displayContent, mode);
+          } else {
+            restoreScroll(displayContent, previewSnapshot);
+          }
+
+          if (overlay.classList.contains('show')) {
+            fitText(overlayText, overlayDisplay, mode, true);
+
+            if (shouldReset) {
+              resetScroll(overlayDisplay, mode);
+            } else {
+              restoreScroll(overlayDisplay, overlaySnapshot);
+            }
+          }
+        });
+      }
+
+      function render({ reset = true } = {}) {
+        displayText.textContent = message.value || 'ここに表示されます';
+        overlayText.textContent = message.value || '';
+        updateActiveButtons();
+        scheduleRender({ reset });
+      }
+
+      function setMode(nextMode) {
+        mode = normalize(nextMode);
+        message.blur();
+        render({ reset: true });
+      }
+
+      function getOverlayFocusableElements() {
+        return [...overlay.querySelectorAll('button:not([disabled])')]
+          .filter((element) => element.offsetParent !== null);
+      }
+
+      function openOverlay() {
+        const rawText = message.value;
+
+        if (!rawText.trim()) {
+          message.focus({ preventScroll: false });
+          return;
+        }
+
+        overlayTrigger = document.activeElement;
+        app.inert = true;
+        overlayText.textContent = rawText;
+        applyLayout(overlay, mode);
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        message.blur();
+        updateActiveButtons();
+        scheduleRender({ reset: true });
+
+        requestAnimationFrame(() => closeButton.focus({ preventScroll: true }));
+      }
+
+      function closeOverlay() {
+        if (!overlay.classList.contains('show')) return;
+
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+        app.inert = false;
+        document.body.style.overflow = '';
+
+        const returnTarget = overlayTrigger;
+        overlayTrigger = null;
+        requestAnimationFrame(() => returnTarget?.focus({ preventScroll: true }));
+      }
+
+      modeButtons.forEach((button) => {
+        button.addEventListener('click', () => setMode(button.dataset.mode));
+      });
+
+      overlayModeButtons.forEach((button) => {
+        button.addEventListener('click', () => setMode(button.dataset.overlayMode));
+      });
+
+      document.getElementById('showButton').addEventListener('click', openOverlay);
+
+      document.getElementById('clearButton').addEventListener('click', () => {
+        message.value = '';
+        render({ reset: true });
+        message.focus({ preventScroll: false });
+      });
+
+      closeButton.addEventListener('click', closeOverlay);
+      message.addEventListener('input', () => render({ reset: true }));
+
+      window.addEventListener('resize', () => scheduleRender({ reset: false }));
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => scheduleRender({ reset: false }), 180);
+      });
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => scheduleRender({ reset: false }));
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          openOverlay();
+          return;
+        }
+
+        if (!overlay.classList.contains('show')) return;
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeOverlay();
+          return;
+        }
+
+        if (event.key === 'Tab') {
+          const focusable = getOverlayFocusableElements();
+          if (!focusable.length) return;
+
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      });
+
+      render({ reset: true });
+    })();
+  </script>
+</body>
+</html>
